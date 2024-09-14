@@ -56,8 +56,8 @@ async function run() {
           payment_method_types: ['card'],
           line_items: lineItems,
           mode: 'payment',
-          success_url: 'http://localhost:5173/success', // Redirect after successful payment
-          cancel_url: 'http://localhost:5173/cancel',   // Redirect if payment is canceled
+          success_url: 'https://e-commerce-six-umber-31.vercel.app/success', 
+          cancel_url: 'https://e-commerce-six-umber-31.vercel.app/cancel',    
         });
 
         res.json({ url: session.url });
