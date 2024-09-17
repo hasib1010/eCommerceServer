@@ -1,79 +1,206 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const Stripe = require('stripe');
-const stripe = Stripe('sk_test_51PypvVKj6EpE0ZfrTaXmUzuh5CohkQdoOA3MXj7qSerMYIYnk7cb2oE61DgbAMGeQbggqsS72JNss1Yb4QlR5ptG00XMtSHW3v');
-const port = process.env.PORT || 3000;
 require('dotenv').config();
+
+const User = require('./models/userModel');
+const Order = require('./models/orderModel'); // Import your Order model
+
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+const port = process.env.PORT || 3000;
 
 const app = express();
 app.use(express.json());
-
- 
 app.use(cors());
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.xvnsa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+// MongoDB connection string
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.xvnsa.mongodb.net/eCommerceDB?retryWrites=true&w=majority`;
 
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
+// Connect to MongoDB using Mongoose
+mongoose.connect(uri)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Exit process on connection error
+  });
+
+// Root route
+app.get('/', (req, res) => {
+  res.send('Hello World! nodemon');
+});
+
+// Products route
+const productsRoute = require('./Routes/products');
+app.use('/products', productsRoute);
+
+// Create Payment Intent
+app.post('/create-payment-intent', async (req, res) => {
+  const { items, total } = req.body;
+
+  if (!Array.isArray(items) || typeof total !== 'number' || total <= 0) {
+    return res.status(400).send({ error: 'Invalid items or total amount' });
+  }
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(total * 100),
+      currency: 'usd',
+      payment_method_types: ['card'],
+      metadata: { items: JSON.stringify(items) }
+    });
+
+    res.send({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    res.status(500).send({ error: 'Failed to create payment intent', details: error.message });
   }
 });
 
-const productsRoute = require('./Routes/products');
-
-async function run() {
+// POST /users - Create a new user
+app.post('/users', async (req, res) => {
   try {
-    await client.connect();
+    const userData = req.body;
 
-    const database = client.db("eCommerceDB");
-    app.get('/', (req, res) => { res.send('Hello World! nodemon'); });
-    app.use('/products', productsRoute(database));
+    // Create a new user instance
+    const newUser = new User(userData);
 
-    app.post('/create-checkout-session', async (req, res) => {
-      try {
-        const { items } = req.body;
+    // Save the user to the database
+    await newUser.save();
 
-        if (!items || items.length === 0) {
-          return res.status(400).json({ error: 'No items provided' });
-        }
-
-        const lineItems = items.map(item => ({
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: item.name,
-              images: [item.thumbnailImage],
-            },
-            unit_amount: item.price * 100, // Amount in cents
-          },
-          quantity: item.quantity,
-        }));
-
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          line_items: lineItems,
-          mode: 'payment',
-          success_url: 'https://e-commerce-six-umber-31.vercel.app/success', 
-          cancel_url: 'https://e-commerce-six-umber-31.vercel.app/cancel',    
-        });
-
-        res.json({ url: session.url });
-      } catch (error) {
-        console.error('Error creating checkout session:', error);
-        res.status(500).json({ error: error.message });
-      }
-    });
-
-    app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
-    });
-
+    res.status(201).send({ message: 'User created successfully' });
   } catch (error) {
-    console.error('Error connecting to MongoDB:', error);
+    console.error('Error saving user to database:', error);
+    res.status(500).send({ message: 'Failed to save user' });
   }
-}
+});
 
-run();
+// GET /users - Get all users
+app.get('/users', async (req, res) => {
+  try {
+    const users = await User.find({}); // Find all users
+    res.send(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).send({ error: 'Failed to fetch users' });
+  }
+});
+
+app.post('/orders', async (req, res) => {
+  try {
+    const { uid, items, transactionId, shippingAddress, phoneNumber, total } = req.body;
+    console.log(req.body);
+
+    const user = await User.findOne({ uid });
+
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    const price = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    const newOrder = new Order({
+      price,
+      quantity,
+      items,
+      transactionId,
+      phoneNumber,
+      shippingAddress,
+      user: user._id // Link the order to the user
+    });
+
+    await newOrder.save();
+
+    // Update user with new order reference
+    user.orders.push(newOrder);
+    await user.save();
+
+    res.status(201).json({ message: 'Order created successfully' });
+  } catch (error) {
+    console.error('Error creating order:', error);
+    res.status(500).json({ error: 'Failed to create order' });
+  }
+});
+
+// GET /orders - Get all orders for a specific user
+app.get('/orders', async (req, res) => {
+  try {
+    const { uid } = req.query;
+
+    if (!uid) {
+      return res.status(400).send({ message: 'User ID is required' });
+    }
+
+    const user = await User.findOne({ uid }).populate('orders');
+
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    res.send(user.orders);
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).send({ error: 'Failed to fetch orders' });
+  }
+});
+
+// GET /admin/orders - Get all orders from all users
+app.get('/admin/orders', async (req, res) => {
+  try {
+    // Find all orders
+    const orders = await Order.find().populate('user'); // Populate user reference
+
+    res.send(orders);
+  } catch (error) {
+    console.error('Error fetching all orders:', error);
+    res.status(500).send({ error: 'Failed to fetch all orders' });
+  }
+});
+
+// POST /admin/orders/:id/status - Update the status of a specific order
+app.post('/admin/orders/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['pending', 'shipped', 'delivered', 'cancelled'].includes(status)) {
+      return res.status(400).send({ message: 'Invalid status' });
+    }
+
+    const result = await Order.updateOne(
+      { _id: id },
+      { $set: { status } }
+    );
+
+    if (result.nModified === 0) {
+      return res.status(404).send({ message: 'Order not found' });
+    }
+
+    res.status(200).send({ message: 'Order status updated successfully' });
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).send({ message: 'Failed to update order status' });
+  }
+});
+
+// GET /users/:uid/orders - Get all orders for a specific user
+app.get('/users/:uid/orders', async (req, res) => {
+  try {
+    const { uid } = req.params;
+
+    const user = await User.findOne({ uid }).populate('orders'); // Populate orders
+
+    if (!user) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    res.send(user.orders);
+  } catch (error) {
+    console.error('Error fetching user orders:', error);
+    res.status(500).send({ error: 'Failed to fetch orders' });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
