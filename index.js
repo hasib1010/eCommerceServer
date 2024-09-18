@@ -88,7 +88,7 @@ app.get('/users', async (req, res) => {
 
 app.post('/orders', async (req, res) => {
   try {
-    const { uid, items, transactionId, shippingAddress, phoneNumber, total } = req.body;
+    const { uid, items, transactionId, shippingAddress, phoneNumber } = req.body;
     console.log(req.body);
 
     const user = await User.findOne({ uid });
@@ -99,6 +99,7 @@ app.post('/orders', async (req, res) => {
 
     const price = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    
     const newOrder = new Order({
       price,
       quantity,
@@ -106,7 +107,8 @@ app.post('/orders', async (req, res) => {
       transactionId,
       phoneNumber,
       shippingAddress,
-      user: user._id // Link the order to the user
+      user: user._id, 
+      confirmedAt: new Date() 
     });
 
     await newOrder.save();
@@ -115,12 +117,13 @@ app.post('/orders', async (req, res) => {
     user.orders.push(newOrder);
     await user.save();
 
-    res.status(201).json({ message: 'Order created successfully' });
+    res.status(201).json({ message: 'Order created successfully', order: newOrder });
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Failed to create order' });
   }
 });
+
 
 // GET /orders - Get all orders for a specific user
 app.get('/orders', async (req, res) => {
@@ -133,7 +136,7 @@ app.get('/orders', async (req, res) => {
 
     const user = await User.findOne({ uid }).populate('orders');
 
-    if (!user) {
+    if (!user) {``
       return res.status(404).send({ message: 'User not found' });
     }
 

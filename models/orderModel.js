@@ -1,18 +1,19 @@
 const mongoose = require('mongoose');
 
-const orderSchema = new mongoose.Schema({ 
-    price: Number, 
+const orderSchema = new mongoose.Schema({
+    price: Number,
     quantity: Number,
-    items: Array, 
+    items: Array,
     status: { type: String, default: 'pending' },
     transactionId: String,
     phoneNumber: String,
     shippingAddress: String,
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } // Reference to the User model
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    confirmedAt: { type: Date, default: null } 
 });
 
-// Indexes for performance
-orderSchema.index({ transactionId: 1 }); // Index for transaction ID
+ 
+orderSchema.index({ transactionId: 1 });  
 
 const Order = mongoose.model('Order', orderSchema);
 
