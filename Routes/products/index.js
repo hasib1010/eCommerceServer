@@ -20,7 +20,7 @@ router.post('/clothings', async (req, res) => {
     }
 
     if (newProduct.isFeatured === undefined) {
-      newProduct.isFeatured = false; 
+      newProduct.isFeatured = false;
     }
 
     const product = new Product(newProduct);
@@ -30,18 +30,18 @@ router.post('/clothings', async (req, res) => {
     console.error('Error inserting document:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
-}); 
+});
 
 router.get('/clothings', async (req, res) => {
   try {
-    const { category } = req.query; // Get the category from query parameters
+    const { category } = req.query;
 
     let filter = {};
     if (category) {
-      filter.category = category; 
+      filter.category = category;
     }
 
-    const products = await Product.find(filter);  
+    const products = await Product.find(filter);
     res.status(200).json({ products });
   } catch (error) {
     console.error('Error fetching documents:', error);
@@ -52,10 +52,25 @@ router.get('/clothings', async (req, res) => {
 // GET /clothings/categories - Get unique categories
 router.get('/clothings/categories', async (req, res) => {
   try {
-    const categories = await Product.distinct('category'); 
+    const categories = await Product.distinct('category');
     res.status(200).json({ categories });
   } catch (error) {
     console.error('Error fetching categories:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+// Dynamic route to get products by category
+router.get("/clothings/categories/:categoryName", async (req, res) => {
+  try {
+    const categoryName = req.params.categoryName;
+    const products = await Product.find({ category: categoryName });
+    if (products.length > 0) {
+      res.status(200).json({ products })
+    } else {
+      res.status(404).json({ error: "No Products Found" })
+    }
+  } catch (error) {
+    console.error('Error fetching products by category:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
