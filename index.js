@@ -85,6 +85,51 @@ app.get('/users', async (req, res) => {
     res.status(500).send({ error: 'Failed to fetch users' });
   }
 });
+app.get('/users/:uid', async (req, res) => {
+  try {
+    const userId = req.params.uid;
+    const query = { uid: userId };
+    const result = await User.findOne(query);
+    if (result) {
+      res.send(result);
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching user by UID:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.patch('/users/:uid', async (req, res) => {
+  const userId = req.params.uid;  
+  const { wishList } = req.body;  
+
+  try {
+    // Find the user by UID
+    const user = await User.findOne({ uid: userId });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update the wishlist, ensuring no duplicates
+    const updatedWishlist = Array.from(new Set([...user.wishList, ...wishList]));
+
+    user.wishList = updatedWishlist; // Update the wishlist
+    const updatedUser = await user.save(); // Save the user with the updated wishlist
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating wishlist:', error);
+    res.status(500).json({ message: 'Failed to update wishlist', error: error.message });
+  }
+});
+
+
+
+
+
 
 app.post('/orders', async (req, res) => {
   try {
@@ -99,7 +144,7 @@ app.post('/orders', async (req, res) => {
 
     const price = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
-    
+
     const newOrder = new Order({
       price,
       quantity,
@@ -107,8 +152,8 @@ app.post('/orders', async (req, res) => {
       transactionId,
       phoneNumber,
       shippingAddress,
-      user: user._id, 
-      confirmedAt: new Date() 
+      user: user._id,
+      confirmedAt: new Date()
     });
 
     await newOrder.save();
@@ -136,7 +181,8 @@ app.get('/orders', async (req, res) => {
 
     const user = await User.findOne({ uid }).populate('orders');
 
-    if (!user) {``
+    if (!user) {
+      ``
       return res.status(404).send({ message: 'User not found' });
     }
 
