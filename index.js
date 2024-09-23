@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:5173' })); // Corrected: Removed trailing slash
 
 // MongoDB connection string
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.xvnsa.mongodb.net/eCommerceDB?retryWrites=true&w=majority`;
@@ -62,16 +62,20 @@ app.post('/users', async (req, res) => {
   try {
     const userData = req.body;
 
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email: userData.email });
+    if (existingUser) {
+      return res.status(400).send({ message: 'User already exists' });
+    }
+
     // Create a new user instance
     const newUser = new User(userData);
-
-    // Save the user to the database
     await newUser.save();
 
     res.status(201).send({ message: 'User created successfully' });
   } catch (error) {
     console.error('Error saving user to database:', error);
-    res.status(500).send({ message: 'Failed to save user' });
+    res.status(500).send({ message: 'Failed to save user', error: error.message });
   }
 });
 
@@ -85,11 +89,34 @@ app.get('/users', async (req, res) => {
     res.status(500).send({ error: 'Failed to fetch users' });
   }
 });
+
+// GET /users/check-email - Check if email exists
+app.get('/users/check-email', async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  try {
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (user) {
+      return res.status(200).json({ exists: true });
+    } else {
+      return res.status(404).json({ exists: false });
+    }
+  } catch (error) {
+    console.error('Error checking email:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// GET /users/:uid - Get user by UID
 app.get('/users/:uid', async (req, res) => {
   try {
     const userId = req.params.uid;
-    const query = { uid: userId };
-    const result = await User.findOne(query);
+    const result = await User.findOne({ uid: userId });
     if (result) {
       res.send(result);
     } else {
@@ -101,23 +128,28 @@ app.get('/users/:uid', async (req, res) => {
   }
 });
 
+
+ 
+
+
+// PATCH /users/:uid - Update user's wishlist
 app.patch('/users/:uid', async (req, res) => {
-  const userId = req.params.uid;  
-  const { wishList } = req.body;  
+  const userId = req.params.uid;
+  const { wishList } = req.body;
+
+  if (!Array.isArray(wishList)) {
+    return res.status(400).json({ message: 'wishList must be an array' });
+  }
 
   try {
-    // Find the user by UID
     const user = await User.findOne({ uid: userId });
-
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Update the wishlist, ensuring no duplicates
-    const updatedWishlist = Array.from(new Set([...user.wishList, ...wishList]));
-
-    user.wishList = updatedWishlist; // Update the wishlist
-    const updatedUser = await user.save(); // Save the user with the updated wishlist
+    // Directly set the wishList to the new array
+    user.wishList = Array.from(new Set(wishList)); // Ensure unique items
+    const updatedUser = await user.save();
 
     res.json(updatedUser);
   } catch (error) {
@@ -126,18 +158,12 @@ app.patch('/users/:uid', async (req, res) => {
   }
 });
 
-
-
-
-
-
+// POST /orders - Create a new order
 app.post('/orders', async (req, res) => {
   try {
     const { uid, items, transactionId, shippingAddress, phoneNumber } = req.body;
-    console.log(req.body);
 
     const user = await User.findOne({ uid });
-
     if (!user) {
       return res.status(404).send({ message: 'User not found' });
     }
@@ -157,8 +183,6 @@ app.post('/orders', async (req, res) => {
     });
 
     await newOrder.save();
-
-    // Update user with new order reference
     user.orders.push(newOrder);
     await user.save();
 
@@ -168,7 +192,6 @@ app.post('/orders', async (req, res) => {
     res.status(500).json({ error: 'Failed to create order' });
   }
 });
-
 
 // GET /orders - Get all orders for a specific user
 app.get('/orders', async (req, res) => {
@@ -180,9 +203,7 @@ app.get('/orders', async (req, res) => {
     }
 
     const user = await User.findOne({ uid }).populate('orders');
-
     if (!user) {
-      ``
       return res.status(404).send({ message: 'User not found' });
     }
 
@@ -196,9 +217,7 @@ app.get('/orders', async (req, res) => {
 // GET /admin/orders - Get all orders from all users
 app.get('/admin/orders', async (req, res) => {
   try {
-    // Find all orders
-    const orders = await Order.find().populate('user'); // Populate user reference
-
+    const orders = await Order.find().populate('user');
     res.send(orders);
   } catch (error) {
     console.error('Error fetching all orders:', error);
@@ -216,10 +235,7 @@ app.post('/admin/orders/:id/status', async (req, res) => {
       return res.status(400).send({ message: 'Invalid status' });
     }
 
-    const result = await Order.updateOne(
-      { _id: id },
-      { $set: { status } }
-    );
+    const result = await Order.updateOne({ _id: id }, { $set: { status } });
 
     if (result.nModified === 0) {
       return res.status(404).send({ message: 'Order not found' });
@@ -236,8 +252,7 @@ app.post('/admin/orders/:id/status', async (req, res) => {
 app.get('/users/:uid/orders', async (req, res) => {
   try {
     const { uid } = req.params;
-
-    const user = await User.findOne({ uid }).populate('orders'); // Populate orders
+    const user = await User.findOne({ uid }).populate('orders');
 
     if (!user) {
       return res.status(404).send({ message: 'User not found' });
@@ -250,6 +265,7 @@ app.get('/users/:uid/orders', async (req, res) => {
   }
 });
 
+// Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
