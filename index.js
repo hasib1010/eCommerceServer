@@ -12,7 +12,13 @@ const port = process.env.PORT || 3000;
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: 'http://localhost:5173' })); // Corrected: Removed trailing slash
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://e-commerce-ten-ecru-48.vercel.app/'
+  ]
+}));
+
 
 // MongoDB connection string
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.xvnsa.mongodb.net/eCommerceDB?retryWrites=true&w=majority`;
@@ -22,7 +28,7 @@ mongoose.connect(uri)
   .then(() => console.log('MongoDB connected'))
   .catch(err => {
     console.error('MongoDB connection error:', err);
-    process.exit(1); // Exit process on connection error
+    process.exit(1);
   });
 
 // Root route
@@ -129,7 +135,7 @@ app.get('/users/:uid', async (req, res) => {
 });
 
 
- 
+
 
 
 // PATCH /users/:uid - Update user's wishlist
