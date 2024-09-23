@@ -15,7 +15,8 @@ app.use(express.json());
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://e-commerce-ten-ecru-48.vercel.app/'
+    'https://e-commerce-ten-ecru-48.vercel.app/',
+    'https://66f134a53e2f92bc11948dba--amazing-dasik-ef2c56.netlify.app/'
   ]
 }));
 
