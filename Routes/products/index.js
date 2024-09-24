@@ -117,5 +117,29 @@ router.put('/clothings/:id/featured', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+router.put('/clothings/:id/trending', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { isTrending } = req.body;
+
+    // Validate isTrending is a boolean
+    if (typeof isTrending !== 'boolean') {
+      return res.status(400).json({ error: 'isTrending must be a boolean' });
+    }
+
+    const product = await Product.findById(id);
+    if (product) {
+      product.isTrending = isTrending;
+      await product.save();
+      res.status(200).json(product);
+    } else {
+      res.status(404).json({ error: 'Product not found' });
+    }
+  } catch (error) {
+    console.error('Error updating document:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 module.exports = router;

@@ -16,7 +16,8 @@ const productSchema = new mongoose.Schema({
   thumbnailImage: { type: String },
   hoverImageUrl: { type: String },
   catalogImages: [String],
-  isFeatured: { type: Boolean, default: false } // Add this line
+  isFeatured: { type: Boolean, default: false },
+  isTrending: { type: Boolean, default: false }
 }, { timestamps: true });
 
 const Product = mongoose.model('Product', productSchema, 'ProductCollection');
