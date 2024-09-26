@@ -40,9 +40,11 @@ app.use('/products', productsRoute);
 
 // Create Payment Intent
 app.post('/create-payment-intent', async (req, res) => {
-  const { items, total } = req.body;
+  const { total } = req.body;
 
-  if (!Array.isArray(items) || typeof total !== 'number' || total <= 0) {
+
+
+  if (typeof total !== 'number' || total <= 0) {
     return res.status(400).send({ error: 'Invalid items or total amount' });
   }
 
@@ -50,8 +52,7 @@ app.post('/create-payment-intent', async (req, res) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(total * 100),
       currency: 'usd',
-      payment_method_types: ['card'],
-      metadata: { items: JSON.stringify(items) }
+      payment_method_types: ['card'], 
     });
 
     res.send({ clientSecret: paymentIntent.client_secret });
