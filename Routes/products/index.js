@@ -133,6 +133,7 @@ router.put('/clothings/:id/trending', async (req, res) => {
 // Update stock for multiple products
 router.patch('/clothings/update-stock', async (req, res) => {
   const { products } = req.body; // Expecting an array of { id, quantity }
+  console.log(products);
   
   if (!Array.isArray(products) || products.length === 0) {
     return res.status(400).json({ message: 'Invalid input. Expected an array of products.' });

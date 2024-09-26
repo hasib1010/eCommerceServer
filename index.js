@@ -37,14 +37,20 @@ app.get('/', (req, res) => {
 // Products route
 const productsRoute = require('./Routes/products');
 app.use('/products', productsRoute);
-
-// Create Payment Intent
+ 
+// Create Payment Intent with Stock Update
 app.post('/create-payment-intent', async (req, res) => {
   const { items, total } = req.body;
 
   if (!Array.isArray(items) || typeof total !== 'number' || total <= 0) {
     return res.status(400).send({ error: 'Invalid items or total amount' });
   }
+
+  // Prepare products for stock update
+  const productsToUpdate = items.map(item => ({
+    id: item.id,
+    quantity: item.quantity,
+  }));
 
   try {
     const paymentIntent = await stripe.paymentIntents.create({
@@ -54,12 +60,27 @@ app.post('/create-payment-intent', async (req, res) => {
       metadata: { items: JSON.stringify(items) }
     });
 
+    // Now call the stock update route
+    const stockUpdateResponse = await fetch(`${process.env.BASE_URL}/clothings/update-stock`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ products: productsToUpdate }),
+    });
+
+    if (!stockUpdateResponse.ok) {
+      throw new Error('Stock update failed');
+    }
+
     res.send({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
     console.error('Error creating payment intent:', error);
     res.status(500).send({ error: 'Failed to create payment intent', details: error.message });
   }
 });
+
+
 
 // POST /users - Create a new user
 app.post('/users', async (req, res) => {
