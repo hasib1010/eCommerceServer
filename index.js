@@ -40,10 +40,7 @@ app.use('/products', productsRoute);
 
 // Create Payment Intent
 app.post('/create-payment-intent', async (req, res) => {
-  const { total } = req.body;
-
-
-
+  const { total } = req.body;  
   if (typeof total !== 'number' || total <= 0) {
     return res.status(400).send({ error: 'Invalid items or total amount' });
   }
@@ -269,6 +266,25 @@ app.get('/users/:uid/orders', async (req, res) => {
     res.status(500).send({ error: 'Failed to fetch orders' });
   }
 });
+// GET /orders/:transactionId - Get a specific order by transaction ID
+app.get('/orders/:transactionId', async (req, res) => {
+  try {
+      const { transactionId } = req.params;
+
+      // Find the order by transactionId
+      const order = await Order.findOne({ transactionId }).populate('user');
+
+      if (!order) {
+          return res.status(404).send({ message: 'Order not found' });
+      }
+
+      res.send(order);
+  } catch (error) {
+      console.error('Error fetching order:', error);
+      res.status(500).send({ error: 'Failed to fetch order' });
+  }
+});
+
 
 // Start the server
 app.listen(port, () => {
