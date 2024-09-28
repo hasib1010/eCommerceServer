@@ -8,17 +8,19 @@ const userSchema = new mongoose.Schema({
         type: String, 
         required: true, 
         unique: true, 
-        match: /.+\@.+\..+/ // Basic regex for email validation
+        match: /.+\@.+\..+/ 
     },
     age: { type: Number, min: 0 },
     createdAt: { type: Date, default: Date.now },
     orders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Order' }],
-    wishList: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }]
+    wishList: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+    profilePicture: { type: String, default: "" }  // New field for profile picture
 });
 
+
 // Indexes for performance
-userSchema.index({ uid: 1 }); // Index for user UID
-userSchema.index({ email: 1 }); // Optional: Index for email
+userSchema.index({ uid: 1 });  
+userSchema.index({ email: 1 }); 
 
 const User = mongoose.model('User', userSchema);
 

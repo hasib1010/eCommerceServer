@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const Stripe = require('stripe');
 require('dotenv').config();
+const axios = require('axios');
 
 const User = require('./models/userModel');
 const Order = require('./models/orderModel'); // Import your Order model
@@ -15,8 +16,6 @@ app.use(express.json());
 app.use(cors({
   origin: '*'
 }));
-
-
 
 // MongoDB connection string
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.xvnsa.mongodb.net/eCommerceDB?retryWrites=true&w=majority`;
@@ -130,35 +129,37 @@ app.get('/users/:uid', async (req, res) => {
   }
 });
 
-
-
-
-
-// PATCH /users/:uid - Update user's wishlist
 app.patch('/users/:uid', async (req, res) => {
   const userId = req.params.uid;
-  const { wishList } = req.body;
+  const { wishList, ...updateData } = req.body;
 
-  if (!Array.isArray(wishList)) {
-    return res.status(400).json({ message: 'wishList must be an array' });
-  }
+  console.log('Update Data:', updateData); // Log the incoming update data
 
   try {
     const user = await User.findOne({ uid: userId });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).send({ message: 'User not found' });
     }
 
-    // Directly set the wishList to the new array
-    user.wishList = Array.from(new Set(wishList)); // Ensure unique items
-    const updatedUser = await user.save();
+    // Update the user with the provided fields
+    Object.keys(updateData).forEach(key => {
+      user[key] = updateData[key];
+    });
 
+    // Update the wishlist if provided
+    if (wishList && Array.isArray(wishList)) {
+      user.wishList = Array.from(new Set(wishList));
+    }
+
+    const updatedUser = await user.save();
+    console.log('Updated User:', updatedUser); // Log the updated user data
     res.json(updatedUser);
   } catch (error) {
-    console.error('Error updating wishlist:', error);
-    res.status(500).json({ message: 'Failed to update wishlist', error: error.message });
+    console.error('Error updating user:', error);
+    res.status(500).send({ message: 'Failed to update user', error: error.message });
   }
 });
+ 
 
 // POST /orders - Create a new order
 app.post('/orders', async (req, res) => {
@@ -266,25 +267,25 @@ app.get('/users/:uid/orders', async (req, res) => {
     res.status(500).send({ error: 'Failed to fetch orders' });
   }
 });
+
 // GET /orders/:transactionId - Get a specific order by transaction ID
 app.get('/orders/:transactionId', async (req, res) => {
   try {
-      const { transactionId } = req.params;
+    const { transactionId } = req.params;
 
-      // Find the order by transactionId
-      const order = await Order.findOne({ transactionId }).populate('user');
+    // Find the order by transactionId
+    const order = await Order.findOne({ transactionId }).populate('user');
 
-      if (!order) {
-          return res.status(404).send({ message: 'Order not found' });
-      }
+    if (!order) {
+      return res.status(404).send({ message: 'Order not found' });
+    }
 
-      res.send(order);
+    res.send(order);
   } catch (error) {
-      console.error('Error fetching order:', error);
-      res.status(500).send({ error: 'Failed to fetch order' });
+    console.error('Error fetching order:', error);
+    res.status(500).send({ error: 'Failed to fetch order' });
   }
 });
-
 
 // Start the server
 app.listen(port, () => {
