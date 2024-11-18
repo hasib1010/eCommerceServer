@@ -38,25 +38,43 @@ const productsRoute = require('./Routes/products');
 app.use('/products', productsRoute);
 
 // Create Payment Intent
-app.post('/create-payment-intent', async (req, res) => {
-  const { total } = req.body;  
-  if (typeof total !== 'number' || total <= 0) {
-    return res.status(400).send({ error: 'Invalid items or total amount' });
-  }
+app.post('/create-checkout-session', async (req, res) => {
+  const { items, total, uid, shippingAddress, phoneNumber } = req.body;
+
+  // Map the items to Stripe's line items format
+  const lineItems = items.map(item => ({
+    price_data: {
+      currency: 'usd',
+      product_data: {
+        name: item.name,
+        images: [item.thumbnailImage], // Optional, if you want to display product images in the checkout
+      },
+      unit_amount: Math.round(item.price * 100),  // Stripe expects the amount in cents
+    },
+    quantity: item.quantity,
+  }));
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(total * 100),
-      currency: 'usd',
-      payment_method_types: ['card'], 
+    // Create the checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'klarna'], // Add Klarna as a payment option
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: `http://localhost:5173/userDashboard`,
+      cancel_url: `http://localhost:5173/checkout`,
+      metadata: {
+        uid,  // Pass user ID or other metadata if needed
+        shippingAddress,
+        phoneNumber,
+      },
     });
 
-    res.send({ clientSecret: paymentIntent.client_secret });
+    res.json({ sessionId: session.id });
   } catch (error) {
-    console.error('Error creating payment intent:', error);
-    res.status(500).send({ error: 'Failed to create payment intent', details: error.message });
+    console.error('Error creating checkout session:', error);
+    res.status(500).send({ error: 'Failed to create checkout session' });
   }
-});
+}); 
 
 // POST /users - Create a new user
 app.post('/users', async (req, res) => {
